@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dome Colors</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald&display=swap" rel="stylesheet">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: 'Oswald', sans-serif;
+      overflow: hidden;
+      background: #000;
+    }
+
+    body {
+      background: url("https://mlounello.github.io/DomeImages/sienahall_new.png") no-repeat center center;
+      background-size: cover;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      padding: 4vh;
+      gap: 4vh;
+    }
+
+    .card {
+      background-color: #006b54;
+      color: #FFFFFF;
+      width: 34vw;
+      height: 82vh;
+      border-radius: 1.2vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 2.2vh;
+      box-sizing: border-box;
+      text-align: center;
+    }
+
+    .card h2 {
+      margin: 0;
+      margin-bottom: 1.6vh;
+      font-size: 3.4vh;
+      letter-spacing: 0.02em;
+    }
+
+    .imageWrap {
+      width: 100%;
+      flex: 1;
+      border: 0.5vh solid #FFF;
+      border-radius: 1vh;
+      overflow: hidden;
+      background: rgba(0,0,0,0.15);
+      margin-bottom: 2vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .card h3 {
+      margin: 0;
+      font-size: 3.2vh;
+      line-height: 1.1;
+    }
+
+    .date-range {
+      margin-top: 0.9vh;
+      font-size: 2.3vh;
+      color: #FCC917;
+    }
+
+    #footerNote {
+      position: absolute;
+      bottom: 2vh;
+      width: 100%;
+      text-align: center;
+      font-size: 3.2vh;
+      color: #FFF;
+      font-weight: bold;
+      text-shadow: 0.35vh 0.35vh 0.8vh #000;
+      pointer-events: none;
+    }
+
+    .message {
+      position: absolute;
+      top: 1vh;
+      left: 1vw;
+      font-weight: bold;
+      color: #fff;
+      font-size: 2.2vh;
+      text-shadow: 0.3vh 0.3vh 0.8vh #000;
+      max-width: 70vw;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="statusMessage" class="message"></div>
+
+  <div class="container">
+    <div class="card">
+      <h2>Current Dome Color</h2>
+      <div class="imageWrap"><img id="imgCurrent" alt="Current Dome Image" /></div>
+      <h3 id="eventNameCurrent">Loading...</h3>
+      <div class="date-range" id="dateRangeCurrent">Loading...</div>
+    </div>
+
+    <div class="card">
+      <h2>Upcoming Dome Color</h2>
+      <div class="imageWrap"><img id="imgUpcoming" alt="Upcoming Dome Image" /></div>
+      <h3 id="eventNameUpcoming">Loading...</h3>
+      <div class="date-range" id="dateRangeUpcoming">Loading...</div>
+    </div>
+  </div>
+
+  <div id="footerNote">More Information Online at www.siena.edu/dome</div>
+
+  <script>
+    const jsonUrl = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLjRffn7ReIxJ3O3Qksl4ogGNmKczWr34nL2tzxKtAsWUQTFxlAIuj7xjrKo-_2xrb-NokvdX4_UDeTYrIQRQkWYeDLRppVR0zd7WVzxkz2qvZP1f9gPSJirymzqd3VpOdJstsoVbQxZzhKzgdAuBgoJTW0IN8v98yWkveTH9jeQiRrsuadQr5rsKRs6KvPUs8UpLk8gO3ZSfxob1UX-6vxnnDU6gPsTRLt1Bvc5kYOLfS3Ur2VZgzcjiGBMoGUHJvUJ0ZAJ49nRwzFmCBu7QrQ3xiEQ7Q&lib=MfKMiHHyi44TaohrF1zHp9_Ne1S4NDrXA";
+
+    const REFRESH_MS = 30000;
+
+    function formatDatePretty(d) {
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    }
+
+    function ymdLocal(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    function formatDateLine(startISO, endISO) {
+      const s = new Date(startISO);
+      const e = new Date(endISO);
+      if (isNaN(s) || isNaN(e)) return "No Date";
+
+      const sDay = ymdLocal(s);
+      const eDay = ymdLocal(e);
+      const today = ymdLocal(new Date());
+
+      if (sDay === eDay) {
+        return (sDay === today) ? "Tonight Only" : formatDatePretty(s);
+      }
+
+      return `${formatDatePretty(s)} - ${formatDatePretty(e)}`;
+    }
+
+    function preloadAndSwap(imgEl, url) {
+      if (!url) return;
+      if (imgEl.getAttribute("data-current-url") === url) return;
+
+      const temp = new Image();
+      temp.onload = () => {
+        imgEl.src = url;
+        imgEl.setAttribute("data-current-url", url);
+      };
+      temp.onerror = () => console.warn("Image failed to load:", url);
+      temp.src = url;
+    }
+
+    function render(payload) {
+      const cur = payload.current || {};
+      const up  = payload.upcoming || {};
+
+      document.getElementById("eventNameCurrent").innerText = cur.title || "No Current Event";
+      document.getElementById("dateRangeCurrent").innerText =
+        (cur.start && cur.end) ? formatDateLine(cur.start, cur.end) : "No Date";
+      preloadAndSwap(document.getElementById("imgCurrent"), cur.imageUrl || "");
+
+      document.getElementById("eventNameUpcoming").innerText = up.title || "No Upcoming Event";
+      document.getElementById("dateRangeUpcoming").innerText =
+        (up.start && up.end) ? formatDateLine(up.start, up.end) : "No Date";
+      preloadAndSwap(document.getElementById("imgUpcoming"), up.imageUrl || "");
+    }
+
+    async function fetchAndRender() {
+      const statusEl = document.getElementById("statusMessage");
+      statusEl.innerText = "Loading dome colors...";
+
+      try {
+        const sep = jsonUrl.includes("?") ? "&" : "?";
+        const bustUrl = jsonUrl + sep + "_=" + Date.now();
+        const resp = await fetch(bustUrl, { cache: "no-store" });
+        if (!resp.ok) throw new Error("Network response was not OK");
+        const data = await resp.json();
+        render(data);
+        statusEl.innerText = "";
+      } catch (e) {
+        console.error(e);
+        statusEl.innerText = "Error loading dome colors.";
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      fetchAndRender();
+      setInterval(fetchAndRender, REFRESH_MS);
+    });
+  </script>
+</body>
+</html>
