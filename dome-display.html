@@ -5,8 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Dome Colors</title>
 
+  <!-- Preconnect to external resources FIRST -->
+  <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+  <link rel="preconnect" href="https://mlounello.github.io" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Preload critical assets - background loads immediately -->
+  <link rel="preload" as="image" href="https://mlounello.github.io/DomeImages/sienahall_new.webp" type="image/webp">
+
+  <!-- Preload common dome colors (most likely to be shown) -->
+  <link rel="preload" as="image" href="https://mlounello.github.io/DomeImages/DOMEHUE_SienaGreen.webp" type="image/webp">
+  <link rel="preload" as="image" href="https://mlounello.github.io/DomeImages/DOMEHUE_SienaGold.webp" type="image/webp">
+  <link rel="preload" as="image" href="https://mlounello.github.io/DomeImages/DOMEHUE_Green.webp" type="image/webp">
+  <link rel="preload" as="image" href="https://mlounello.github.io/DomeImages/DOMEHUE_Blue.webp" type="image/webp">
+
+  <!-- Font with swap to prevent blocking -->
   <link href="https://fonts.googleapis.com/css2?family=Oswald&display=swap" rel="stylesheet">
 
   <style>
@@ -21,7 +35,8 @@
     }
 
     body {
-      background: url("https://mlounello.github.io/DomeImages/sienahall_new.png") no-repeat center center;
+      /* WebP with PNG fallback */
+      background: url("https://mlounello.github.io/DomeImages/sienahall_new.webp") no-repeat center center;
       background-size: cover;
     }
 
@@ -70,6 +85,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      position: relative;
     }
 
     .card img {
@@ -77,6 +93,32 @@
       height: 100%;
       object-fit: cover;
       display: block;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .card img.loaded {
+      opacity: 1;
+    }
+
+    /* Loading spinner shown while image loads */
+    .imageWrap::before {
+      content: "";
+      position: absolute;
+      width: 8vh;
+      height: 8vh;
+      border: 0.6vh solid rgba(255,255,255,0.3);
+      border-top-color: #FCC917;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    .imageWrap.has-image::before {
+      display: none;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
 
     .card h3 {
@@ -122,16 +164,16 @@
   <div class="container">
     <div class="card">
       <h2>Current Dome Color</h2>
-      <div class="imageWrap"><img id="imgCurrent" alt="Current Dome Image" /></div>
+      <div class="imageWrap" id="wrapCurrent"><img id="imgCurrent" alt="Current Dome Image" /></div>
       <h3 id="eventNameCurrent">Loading...</h3>
-      <div class="date-range" id="dateRangeCurrent">Loading...</div>
+      <div class="date-range" id="dateRangeCurrent"></div>
     </div>
 
     <div class="card">
       <h2>Upcoming Dome Color</h2>
-      <div class="imageWrap"><img id="imgUpcoming" alt="Upcoming Dome Image" /></div>
+      <div class="imageWrap" id="wrapUpcoming"><img id="imgUpcoming" alt="Upcoming Dome Image" /></div>
       <h3 id="eventNameUpcoming">Loading...</h3>
-      <div class="date-range" id="dateRangeUpcoming">Loading...</div>
+      <div class="date-range" id="dateRangeUpcoming"></div>
     </div>
   </div>
 
@@ -141,6 +183,21 @@
     const jsonUrl = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLjRffn7ReIxJ3O3Qksl4ogGNmKczWr34nL2tzxKtAsWUQTFxlAIuj7xjrKo-_2xrb-NokvdX4_UDeTYrIQRQkWYeDLRppVR0zd7WVzxkz2qvZP1f9gPSJirymzqd3VpOdJstsoVbQxZzhKzgdAuBgoJTW0IN8v98yWkveTH9jeQiRrsuadQr5rsKRs6KvPUs8UpLk8gO3ZSfxob1UX-6vxnnDU6gPsTRLt1Bvc5kYOLfS3Ur2VZgzcjiGBMoGUHJvUJ0ZAJ49nRwzFmCBu7QrQ3xiEQ7Q&lib=MfKMiHHyi44TaohrF1zHp9_Ne1S4NDrXA";
 
     const REFRESH_MS = 30000;
+    const IMAGE_BASE = "https://mlounello.github.io/DomeImages/";
+
+    // Convert PNG URLs to WebP for faster loading
+    function toWebP(url) {
+      if (!url) return url;
+      // If it's already a full URL pointing to our GitHub, convert to WebP
+      if (url.includes("mlounello.github.io/DomeImages/") && url.endsWith(".png")) {
+        return url.replace(".png", ".webp");
+      }
+      // If it's just a filename
+      if (url.endsWith(".png")) {
+        return url.replace(".png", ".webp");
+      }
+      return url;
+    }
 
     function formatDatePretty(d) {
       return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -169,17 +226,34 @@
       return `${formatDatePretty(s)} - ${formatDatePretty(e)}`;
     }
 
-    function preloadAndSwap(imgEl, url) {
+    function setImage(imgEl, wrapEl, url) {
       if (!url) return;
-      if (imgEl.getAttribute("data-current-url") === url) return;
 
-      const temp = new Image();
-      temp.onload = () => {
-        imgEl.src = url;
-        imgEl.setAttribute("data-current-url", url);
+      const webpUrl = toWebP(url);
+      if (imgEl.getAttribute("data-current-url") === webpUrl) return;
+
+      // Remove loaded class while loading new image
+      imgEl.classList.remove("loaded");
+      wrapEl.classList.remove("has-image");
+
+      // Set up load handler
+      imgEl.onload = () => {
+        imgEl.classList.add("loaded");
+        wrapEl.classList.add("has-image");
+        imgEl.setAttribute("data-current-url", webpUrl);
       };
-      temp.onerror = () => console.warn("Image failed to load:", url);
-      temp.src = url;
+
+      imgEl.onerror = () => {
+        // Fallback to PNG if WebP fails
+        if (webpUrl !== url) {
+          imgEl.src = url;
+        } else {
+          console.warn("Image failed to load:", url);
+        }
+      };
+
+      // Start loading
+      imgEl.src = webpUrl;
     }
 
     function render(payload) {
@@ -189,17 +263,24 @@
       document.getElementById("eventNameCurrent").innerText = cur.title || "No Current Event";
       document.getElementById("dateRangeCurrent").innerText =
         (cur.start && cur.end) ? formatDateLine(cur.start, cur.end) : "No Date";
-      preloadAndSwap(document.getElementById("imgCurrent"), cur.imageUrl || "");
+      setImage(
+        document.getElementById("imgCurrent"),
+        document.getElementById("wrapCurrent"),
+        cur.imageUrl || ""
+      );
 
       document.getElementById("eventNameUpcoming").innerText = up.title || "No Upcoming Event";
       document.getElementById("dateRangeUpcoming").innerText =
         (up.start && up.end) ? formatDateLine(up.start, up.end) : "No Date";
-      preloadAndSwap(document.getElementById("imgUpcoming"), up.imageUrl || "");
+      setImage(
+        document.getElementById("imgUpcoming"),
+        document.getElementById("wrapUpcoming"),
+        up.imageUrl || ""
+      );
     }
 
     async function fetchAndRender() {
       const statusEl = document.getElementById("statusMessage");
-      statusEl.innerText = "Loading dome colors...";
 
       try {
         const sep = jsonUrl.includes("?") ? "&" : "?";
@@ -215,10 +296,9 @@
       }
     }
 
-    window.addEventListener("DOMContentLoaded", () => {
-      fetchAndRender();
-      setInterval(fetchAndRender, REFRESH_MS);
-    });
+    // Start fetching immediately - don't wait for DOMContentLoaded
+    fetchAndRender();
+    setInterval(fetchAndRender, REFRESH_MS);
   </script>
 </body>
 </html>

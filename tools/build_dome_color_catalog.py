@@ -1,53 +1,93 @@
+#!/usr/bin/env python3
+"""
+Build script for generating the dome-colors.html gallery page.
+
+Usage:
+    python tools/build_dome_color_catalog.py
+
+This script scans the repository root for DOMEHUE_*.webp images (falling back to PNG)
+and generates a responsive gallery page with lazy loading for optimal performance.
+"""
+
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
-from typing import List, Tuple
-from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]  # repo root
-IMAGES_DIR = ROOT  # if your PNGs are in repo root; change if in subfolder
+IMAGES_DIR = ROOT  # images are in repo root
 OUTPUT_HTML = ROOT / "dome-colors.html"
 
-PATTERN = re.compile(r"^DOMEHUE_.*\.(png|jpg|jpeg|webp)$", re.IGNORECASE)
+# Match DOMEHUE images - prefer webp, fallback to png/jpg
+PATTERN = re.compile(r"^DOMEHUE_.*\.(webp|png|jpg|jpeg)$", re.IGNORECASE)
 
-# If your images are all in a subfolder like DomeImages/, set:
-# IMAGES_DIR = ROOT / "DomeImages"
 
 def friendly_name(filename: str) -> str:
+    """Convert filename to human-readable title.
+
+    Examples:
+        DOMEHUE_SienaGreen.webp -> Siena Green
+        DOMEHUE_RedWhiteBlue.png -> Red White Blue
+    """
     name = filename.rsplit(".", 1)[0]
     name = name.replace("DOMEHUE_", "")
+    # Insert space before capital letters (CamelCase -> Camel Case)
+    name = re.sub(r'([a-z])([A-Z])', r'\1 \2', name)
     name = name.replace("_", " ")
     return name.strip()
 
+
+def get_best_image(base_name: str) -> str | None:
+    """Get the best available image format (prefer WebP for smaller size)."""
+    for ext in ['.webp', '.png', '.jpg', '.jpeg']:
+        candidate = IMAGES_DIR / f"{base_name}{ext}"
+        if candidate.exists():
+            return candidate.name
+    return None
+
+
 def main() -> None:
-    files = []
+    # Find all DOMEHUE images and deduplicate by base name (prefer webp)
+    seen_bases = {}
     for p in IMAGES_DIR.iterdir():
         if p.is_file() and PATTERN.match(p.name):
-            files.append(p)
+            base = p.stem  # filename without extension
+            ext = p.suffix.lower()
 
-    files.sort(key=lambda p: p.name.lower())
+            # Prefer webp over other formats
+            if base not in seen_bases:
+                seen_bases[base] = p
+            elif ext == '.webp':
+                seen_bases[base] = p  # webp wins
+            elif seen_bases[base].suffix.lower() != '.webp':
+                # Keep first non-webp found
+                pass
+
+    files = sorted(seen_bases.values(), key=lambda p: p.name.lower())
+
+    if not files:
+        print("No DOMEHUE images found!")
+        return
 
     tiles = []
     for p in files:
-        tiles.append(f"""
+        title = friendly_name(p.name)
+        tiles.append(f'''
   <div class="tile">
     <div class="imgwrap">
-      <img src="{p.name}" alt="{friendly_name(p.name)}">
+      <img src="{p.name}" alt="{title}" loading="lazy" decoding="async">
     </div>
     <div class="meta">
-      <div class="title">{friendly_name(p.name)}</div>
+      <div class="title">{title}</div>
     </div>
-  </div>
-""")
+  </div>''')
 
-    html = f"""<!doctype html>
+    html = f'''<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Dome Colors</title>
+  <title>Dome Colors - Siena College</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Oswald&display=swap" rel="stylesheet">
@@ -90,7 +130,7 @@ def main() -> None:
     }}
     .imgwrap {{
       width: 100%;
-      aspect-ratio: 16 / 9;
+      aspect-ratio: 1 / 1;
       background: #000;
       display: flex;
       align-items: center;
@@ -110,7 +150,6 @@ def main() -> None:
       line-height: 1.1;
       margin-bottom: 4px;
     }}
-    
     footer {{
       max-width: 1200px;
       margin: 0 auto;
@@ -121,23 +160,23 @@ def main() -> None:
   </style>
 </head>
 <body>
-<header>
-  <h1>Dome Colors</h1>
-  <p class="sub">Available dome lighting looks.</p>
-</header>
+  <header>
+    <h1>Dome Colors</h1>
+    <p class="sub">Available dome lighting themes for Siena College.</p>
+  </header>
 
-  <section class="grid">
-    {''.join(tiles)}
+  <section class="grid">{''.join(tiles)}
   </section>
 
   <footer>
-  <span style="opacity:0.6;">Current available dome color looks.</span>
-</footer>
+    <span style="opacity:0.6;">{len(files)} dome color themes available.</span>
+  </footer>
 </body>
 </html>
-"""
+'''
     OUTPUT_HTML.write_text(html, encoding="utf-8")
-    print(f"Wrote {OUTPUT_HTML} with {len(files)} tiles.")
+    print(f"✓ Generated {OUTPUT_HTML.name} with {len(files)} color themes.")
+
 
 if __name__ == "__main__":
     main()
