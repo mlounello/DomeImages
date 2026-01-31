@@ -138,11 +138,9 @@
   <div id="footerNote">More Information Online at www.siena.edu/dome</div>
 
   <script>
-    // Configuration
     var jsonUrl = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLjRffn7ReIxJ3O3Qksl4ogGNmKczWr34nL2tzxKtAsWUQTFxlAIuj7xjrKo-_2xrb-NokvdX4_UDeTYrIQRQkWYeDLRppVR0zd7WVzxkz2qvZP1f9gPSJirymzqd3VpOdJstsoVbQxZzhKzgdAuBgoJTW0IN8v98yWkveTH9jeQiRrsuadQr5rsKRs6KvPUs8UpLk8gO3ZSfxob1UX-6vxnnDU6gPsTRLt1Bvc5kYOLfS3Ur2VZgzcjiGBMoGUHJvUJ0ZAJ49nRwzFmCBu7QrQ3xiEQ7Q&lib=MfKMiHHyi44TaohrF1zHp9_Ne1S4NDrXA";
     var REFRESH_MS = 30000;
 
-    // Helper functions
     function formatDatePretty(d) {
       var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
       return months[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear();
@@ -168,17 +166,8 @@
       return formatDatePretty(s) + " - " + formatDatePretty(e);
     }
 
-    function ensureHttps(url) {
-      if (!url) return url;
-      if (url.indexOf("http://") === 0) {
-        return "https://" + url.substring(7);
-      }
-      return url;
-    }
-
     function setImage(imgEl, url) {
       if (!url) return;
-      url = ensureHttps(url);
       if (imgEl.getAttribute("src") === url) return;
       imgEl.setAttribute("src", url);
     }
@@ -200,23 +189,6 @@
 
     function fetchData() {
       var statusEl = document.getElementById("statusMessage");
-
-      // Try fetch first (modern browsers)
-      if (typeof fetch !== "undefined") {
-        fetch(jsonUrl + "&_=" + Date.now(), { mode: "cors" })
-          .then(function(response) { return response.json(); })
-          .then(function(data) { render(data); })
-          .catch(function(err) {
-            statusEl.innerHTML = "Error: " + err.message;
-            tryXHR();
-          });
-      } else {
-        tryXHR();
-      }
-    }
-
-    function tryXHR() {
-      var statusEl = document.getElementById("statusMessage");
       var xhr = new XMLHttpRequest();
       xhr.open("GET", jsonUrl + "&_=" + Date.now(), true);
       xhr.onload = function() {
@@ -228,7 +200,7 @@
             statusEl.innerHTML = "Parse error";
           }
         } else {
-          statusEl.innerHTML = "HTTP " + xhr.status;
+          statusEl.innerHTML = "Error " + xhr.status;
         }
       };
       xhr.onerror = function() {
@@ -237,7 +209,6 @@
       xhr.send();
     }
 
-    // Start immediately
     fetchData();
     setInterval(fetchData, REFRESH_MS);
   </script>
