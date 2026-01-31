@@ -5,16 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Dome Colors</title>
 
-  <!-- Preconnect to external resources FIRST -->
-  <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
-  <link rel="preconnect" href="https://mlounello.github.io" crossorigin>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
-  <!-- Preload background image (PNG for RiseVision compatibility) -->
-  <link rel="preload" as="image" href="https://mlounello.github.io/DomeImages/sienahall_new.png" type="image/png">
-
-  <!-- Font with swap to prevent blocking -->
+  <!-- Font -->
   <link href="https://fonts.googleapis.com/css2?family=Oswald&display=swap" rel="stylesheet">
 
   <style>
@@ -29,7 +20,6 @@
     }
 
     body {
-      /* PNG for RiseVision compatibility */
       background: url("https://mlounello.github.io/DomeImages/sienahall_new.png") no-repeat center center;
       background-size: cover;
     }
@@ -113,7 +103,7 @@
       pointer-events: none;
     }
 
-    .message {
+    #statusMessage {
       position: absolute;
       top: 1vh;
       left: 1vw;
@@ -127,19 +117,19 @@
 </head>
 
 <body>
-  <div id="statusMessage" class="message"></div>
+  <div id="statusMessage"></div>
 
   <div class="container">
     <div class="card">
       <h2>Current Dome Color</h2>
-      <div class="imageWrap" id="wrapCurrent"><img id="imgCurrent" alt="Current Dome Image" /></div>
+      <div class="imageWrap"><img id="imgCurrent" alt="Current Dome Image" src="" /></div>
       <h3 id="eventNameCurrent">Loading...</h3>
       <div class="date-range" id="dateRangeCurrent"></div>
     </div>
 
     <div class="card">
       <h2>Upcoming Dome Color</h2>
-      <div class="imageWrap" id="wrapUpcoming"><img id="imgUpcoming" alt="Upcoming Dome Image" /></div>
+      <div class="imageWrap"><img id="imgUpcoming" alt="Upcoming Dome Image" src="" /></div>
       <h3 id="eventNameUpcoming">Loading...</h3>
       <div class="date-range" id="dateRangeUpcoming"></div>
     </div>
@@ -148,89 +138,108 @@
   <div id="footerNote">More Information Online at www.siena.edu/dome</div>
 
   <script>
+    // Configuration
     var jsonUrl = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLjRffn7ReIxJ3O3Qksl4ogGNmKczWr34nL2tzxKtAsWUQTFxlAIuj7xjrKo-_2xrb-NokvdX4_UDeTYrIQRQkWYeDLRppVR0zd7WVzxkz2qvZP1f9gPSJirymzqd3VpOdJstsoVbQxZzhKzgdAuBgoJTW0IN8v98yWkveTH9jeQiRrsuadQr5rsKRs6KvPUs8UpLk8gO3ZSfxob1UX-6vxnnDU6gPsTRLt1Bvc5kYOLfS3Ur2VZgzcjiGBMoGUHJvUJ0ZAJ49nRwzFmCBu7QrQ3xiEQ7Q&lib=MfKMiHHyi44TaohrF1zHp9_Ne1S4NDrXA";
-
     var REFRESH_MS = 30000;
 
+    // Helper functions
     function formatDatePretty(d) {
-      return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      return months[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear();
     }
 
     function ymdLocal(d) {
       var y = d.getFullYear();
-      var m = String(d.getMonth() + 1);
-      if (m.length < 2) m = "0" + m;
-      var day = String(d.getDate());
-      if (day.length < 2) day = "0" + day;
-      return y + "-" + m + "-" + day;
+      var m = d.getMonth() + 1;
+      var day = d.getDate();
+      return y + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
     }
 
     function formatDateLine(startISO, endISO) {
       var s = new Date(startISO);
       var e = new Date(endISO);
       if (isNaN(s.getTime()) || isNaN(e.getTime())) return "No Date";
-
       var sDay = ymdLocal(s);
       var eDay = ymdLocal(e);
       var today = ymdLocal(new Date());
-
       if (sDay === eDay) {
         return (sDay === today) ? "Tonight Only" : formatDatePretty(s);
       }
-
       return formatDatePretty(s) + " - " + formatDatePretty(e);
+    }
+
+    function ensureHttps(url) {
+      if (!url) return url;
+      if (url.indexOf("http://") === 0) {
+        return "https://" + url.substring(7);
+      }
+      return url;
     }
 
     function setImage(imgEl, url) {
       if (!url) return;
-      if (imgEl.getAttribute("data-current-url") === url) return;
-      imgEl.src = url;
-      imgEl.setAttribute("data-current-url", url);
+      url = ensureHttps(url);
+      if (imgEl.getAttribute("src") === url) return;
+      imgEl.setAttribute("src", url);
     }
 
-    function render(payload) {
-      var cur = payload.current || {};
-      var up = payload.upcoming || {};
+    function render(data) {
+      var cur = data.current || {};
+      var up = data.upcoming || {};
 
-      document.getElementById("eventNameCurrent").innerText = cur.title || "No Current Event";
-      document.getElementById("dateRangeCurrent").innerText =
-        (cur.start && cur.end) ? formatDateLine(cur.start, cur.end) : "No Date";
-      setImage(document.getElementById("imgCurrent"), cur.imageUrl || "");
+      document.getElementById("eventNameCurrent").innerHTML = cur.title || "No Current Event";
+      document.getElementById("dateRangeCurrent").innerHTML = (cur.start && cur.end) ? formatDateLine(cur.start, cur.end) : "";
+      setImage(document.getElementById("imgCurrent"), cur.imageUrl);
 
-      document.getElementById("eventNameUpcoming").innerText = up.title || "No Upcoming Event";
-      document.getElementById("dateRangeUpcoming").innerText =
-        (up.start && up.end) ? formatDateLine(up.start, up.end) : "No Date";
-      setImage(document.getElementById("imgUpcoming"), up.imageUrl || "");
+      document.getElementById("eventNameUpcoming").innerHTML = up.title || "No Upcoming Event";
+      document.getElementById("dateRangeUpcoming").innerHTML = (up.start && up.end) ? formatDateLine(up.start, up.end) : "";
+      setImage(document.getElementById("imgUpcoming"), up.imageUrl);
+
+      document.getElementById("statusMessage").innerHTML = "";
     }
 
-    function fetchAndRender() {
+    function fetchData() {
       var statusEl = document.getElementById("statusMessage");
 
-      var xhr = new XMLHttpRequest();
-      var bustUrl = jsonUrl + "&_=" + Date.now();
+      // Try fetch first (modern browsers)
+      if (typeof fetch !== "undefined") {
+        fetch(jsonUrl + "&_=" + Date.now(), { mode: "cors" })
+          .then(function(response) { return response.json(); })
+          .then(function(data) { render(data); })
+          .catch(function(err) {
+            statusEl.innerHTML = "Error: " + err.message;
+            tryXHR();
+          });
+      } else {
+        tryXHR();
+      }
+    }
 
-      xhr.open("GET", bustUrl, true);
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 200) {
-            try {
-              var data = JSON.parse(xhr.responseText);
-              render(data);
-              statusEl.innerText = "";
-            } catch (e) {
-              statusEl.innerText = "Error parsing data.";
-            }
-          } else {
-            statusEl.innerText = "Error loading dome colors.";
+    function tryXHR() {
+      var statusEl = document.getElementById("statusMessage");
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", jsonUrl + "&_=" + Date.now(), true);
+      xhr.onload = function() {
+        if (xhr.status === 200) {
+          try {
+            var data = JSON.parse(xhr.responseText);
+            render(data);
+          } catch (e) {
+            statusEl.innerHTML = "Parse error";
           }
+        } else {
+          statusEl.innerHTML = "HTTP " + xhr.status;
         }
+      };
+      xhr.onerror = function() {
+        statusEl.innerHTML = "Network error";
       };
       xhr.send();
     }
 
-    // Start fetching immediately
-    fetchAndRender();
-    setInterval(fetchAndRender, REFRESH_MS);
+    // Start immediately
+    fetchData();
+    setInterval(fetchData, REFRESH_MS);
   </script>
 </body>
 </html>
