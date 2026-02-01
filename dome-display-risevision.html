@@ -219,23 +219,30 @@
 
     function fetchData() {
       var statusEl = document.getElementById("statusMessage");
+
+      // Try to load cached data first for instant display
+      try {
+        var cached = localStorage.getItem("domeData");
+        if (cached) {
+          render(JSON.parse(cached));
+        }
+      } catch (e) {}
+
+      // Then fetch fresh data
       var xhr = new XMLHttpRequest();
       xhr.open("GET", jsonUrl + "&_=" + Date.now(), true);
       xhr.onload = function() {
         if (xhr.status === 200) {
           try {
             var data = JSON.parse(xhr.responseText);
+            localStorage.setItem("domeData", xhr.responseText);
             render(data);
           } catch (e) {
             statusEl.innerHTML = "Parse error";
           }
-        } else {
-          statusEl.innerHTML = "Error " + xhr.status;
         }
       };
-      xhr.onerror = function() {
-        statusEl.innerHTML = "Network error";
-      };
+      xhr.onerror = function() {};
       xhr.send();
     }
 
