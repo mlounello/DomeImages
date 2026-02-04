@@ -235,8 +235,8 @@
         if (xhr.status === 200) {
           try {
             var data = JSON.parse(xhr.responseText);
-            localStorage.setItem("domeData", xhr.responseText);
             render(data);
+            try { localStorage.setItem("domeData", xhr.responseText); } catch (e) {}
           } catch (e) {
             statusEl.innerHTML = "Parse error";
           }
